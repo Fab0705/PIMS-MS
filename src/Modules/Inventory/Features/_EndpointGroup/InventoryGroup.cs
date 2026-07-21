@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
 
-namespace PIMS_MS.Modules.Inventory.Features.EndpointGroup;
+namespace PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
 public static class InventoryGroup
 {
