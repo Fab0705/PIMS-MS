@@ -14,6 +14,11 @@ using PIMS_MS.Modules.FieldService.Database;
 using PIMS_MS.Common.Behaviors;
 using FluentValidation;
 using PIMS_MS.Common.Exceptions;
+using PIMS_MS.Api.Service;
+using Microsoft.AspNetCore.Identity;
+using PIMS_MS.Modules.Identity.Domain.Constants;
+using PIMS_MS.Common.Interceptors;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,10 +63,18 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(connectionString));
-builder.Services.AddDbContext<InventoryDbContext>(options =>
-    options.UseNpgsql(connectionString));
-builder.Services.AddDbContext<LogisticDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<InventoryDbContext>((sp, options) =>
+{
+    var interceptor = sp.GetRequiredService<UpdateAuditableEntitiesInterceptor>();
+    options.UseNpgsql(connectionString)
+           .AddInterceptors(interceptor);
+});
+builder.Services.AddDbContext<LogisticDbContext>((sp, options) =>
+{
+    var interceptor = sp.GetRequiredService<UpdateAuditableEntitiesInterceptor>();
+    options.UseNpgsql(connectionString)
+           .AddInterceptors(interceptor);
+});
 builder.Services.AddDbContext<FieldServiceDbContext>(options =>
     options.UseNpgsql(connectionString));
     
@@ -83,12 +96,28 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddOpenBehavior(typeof(PerformanceBehavior<,>));
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
 });
+
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<ICurrentService, CurrentService>();
+builder.Services.AddScoped<UpdateAuditableEntitiesInterceptor>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.AllowAnyOrigin() // O pon la URL de tu React en producción
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var secret = builder.Configuration["JwtSettings:Secret"] 
+            ?? throw new InvalidOperationException("El secreto JWT no se encontró en la configuración del servidor.");
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -97,7 +126,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Secret"]))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+
+            RoleClaimType = ClaimTypes.Role
         };
     });
 
@@ -105,18 +136,29 @@ builder.Services.AddAuthorization(options =>
 {
     var adminPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        //.RequireRole()
+        .RequireRole(Roles.Administrator)
         .Build();
 
     options.FallbackPolicy = adminPolicy;
 });
 
-var endpoints = typeof(Program).Assembly
-    .DefinedTypes
+var assembliesToScan = new[]
+{
+    typeof(Program).Assembly,
+    PIMS_MS.Modules.Inventory.AssemblyReference.Assembly,
+    PIMS_MS.Modules.Identity.AssemblyReference.Assembly,
+    PIMS_MS.Modules.Logistics.AssemblyReference.Assembly,
+    PIMS_MS.Modules.FieldService.AssemblyReference.Assembly,
+    PIMS_MS.Modules.Notifications.AssemblyReference.Assembly  
+};
+
+var endpoints = assembliesToScan
+    .SelectMany(assembly => assembly.DefinedTypes)
     .Where(type => type is { IsAbstract: false, IsInterface: false } &&
                    type.IsAssignableTo(typeof(IEndpoint)))
     .Select(type => ServiceDescriptor.Transient(typeof(IEndpoint), type))
     .ToArray();
+
 
 builder.Services.TryAddEnumerable(endpoints);
 
@@ -144,6 +186,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
