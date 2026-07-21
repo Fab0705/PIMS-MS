@@ -44,7 +44,7 @@ public class GlobalExceptionHandler : IExceptionHandler
                 .GroupBy(e => e.PropertyName, e => e.ErrorMessage)
                 .ToDictionary(failureGroup => failureGroup.Key, failureGroup => failureGroup.ToArray());
         }
-        else if (exception is KeyNotFoundException) // O tu propia NotFoundException
+        else if (exception is NotFoundException || exception is KeyNotFoundException)
         {
             // Error 404: No se encontró el recurso en la BD
             problemDetails.Status = StatusCodes.Status404NotFound;
@@ -53,16 +53,22 @@ public class GlobalExceptionHandler : IExceptionHandler
         }
         else if (exception is UnauthorizedAccessException)
         {
-            // Error 401/403: Problemas de permisos
             problemDetails.Status = StatusCodes.Status401Unauthorized;
             problemDetails.Title = "Acceso Denegado";
             problemDetails.Detail = "No tienes permisos para realizar esta acción.";
         }
-        else if (exception is ArgumentException || exception is InvalidOperationException)
+        else if (exception is DomainException || exception is ArgumentException || exception is InvalidOperationException)
         {
-            // Error 400: Regla de negocio rota (Ej: "El stock no puede ser negativo")
+            // Error 400: Regla de negocio rota en el Dominio
             problemDetails.Status = StatusCodes.Status400BadRequest;
             problemDetails.Title = "Regla de Negocio Inválida";
+            problemDetails.Detail = exception.Message;
+        }
+        else if (exception is KeyNotFoundException) // O tu propia NotFoundException
+        {
+            // Error 404: No se encontró el recurso en la BD
+            problemDetails.Status = StatusCodes.Status404NotFound;
+            problemDetails.Title = "Recurso no encontrado";
             problemDetails.Detail = exception.Message;
         }
 
