@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Api.Modules.Identity.Domain.Entities;
+using PIMS_MS.Common.Contracts;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Identity.Database;
 using PIMS_MS.Modules.Identity.Features._EndpointGroup;
@@ -13,22 +14,31 @@ namespace PIMS_MS.Modules.Identity.Features.Users;
 
 public static class CreateUser
 {
-    public record Command(string Email, string Password, string Role) : IRequest<UserResponse>;
+    public record Command(string Email, string Password, string Role, Guid LocationId) : IRequest<UserResponse>;
     public record UserResponse(Guid Id, string Email, string TemporaryPassword, string Message);
 
     public class Handler : IRequestHandler<Command, UserResponse>
     {
+        private readonly ISender _sender;
         private readonly IdentityDbContext _dbContext;
         private readonly IPasswordHasher _passwordHasher;
 
-        public Handler(IdentityDbContext dbContext, IPasswordHasher passwordHasher)
+        public Handler(IdentityDbContext dbContext, IPasswordHasher passwordHasher, ISender sender)
         {
             _dbContext = dbContext;
             _passwordHasher = passwordHasher;
+            _sender = sender;
         }
 
         public async Task<UserResponse> Handle(Command request, CancellationToken cancellationToken)
         {
+            bool locationExists = await _sender.Send(new CheckLocationExistsQuery(request.LocationId), cancellationToken);
+
+            if (!locationExists)
+            {
+                throw new ValidationException("La ubicación asignada no existe en el catálogo global de inventario.");
+            }
+
             var existingUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
             if (existingUser != null)
             {
@@ -38,7 +48,7 @@ public static class CreateUser
             var temporaryPassword = _passwordHasher.GenerateTemporaryPassword();
             var passwordHash = _passwordHasher.HashPassword(temporaryPassword);
 
-            var newUser = new User(request.Email, passwordHash, request.Role);
+            var newUser = new User(request.Email, passwordHash, request.Role, request.LocationId);
 
             // Add the new user to the database
             _dbContext.Users.Add(newUser);
@@ -55,6 +65,7 @@ public static class CreateUser
             RuleFor(x => x.Email).NotEmpty().EmailAddress();
             RuleFor(x => x.Password).NotEmpty();
             RuleFor(x => x.Role).NotEmpty();
+            RuleFor(x => x.LocationId).NotEqual(Guid.Empty);
         }
     }
 

@@ -33,11 +33,12 @@ public static class LoginWithCredentials
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
             if (user == null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
             {
-                throw new Exception("Invalid email or password.");
+                throw new UnauthorizedAccessException("Credenciales inválidas. Correo electrónico o contraseña incorrectos.");
             }
-
-            string result = _jwtTokenGenerator.GenerateToken(user.Id, user.Role);
-            return new LoginResponse(result, string.Empty, DateTime.UtcNow.AddHours(1)); // Replace with actual refresh token and expiration logic
+            var expiration = DateTime.UtcNow.AddMinutes(30);
+            
+            string token = _jwtTokenGenerator.GenerateToken(user.Id, user.Email, user.Role, user.LocationId);
+            return new LoginResponse(token, string.Empty, expiration);
         }
     }
 
@@ -59,7 +60,8 @@ public static class LoginWithCredentials
                     var result = await mediator.Send(command);
                     return Results.Ok(result);
                 })
-                .WithName("Login");
+                .WithName("Login")
+                .AllowAnonymous();
         }
     }
 }
