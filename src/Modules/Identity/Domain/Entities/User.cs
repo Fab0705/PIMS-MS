@@ -10,9 +10,11 @@ public class User
     public string PasswordHash { get; private set; } = null!;
     public string Role { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
+
+    public Guid LocationId { get; private set; }
     
     private User() { }
-    public User(string email, string passwordHash, string role)
+    public User(string email, string passwordHash, string role, Guid locationId)
     {
         if (string.IsNullOrWhiteSpace(role) || !Roles.IsValidRole(role))
         {
@@ -23,10 +25,16 @@ public class User
         Email = email;
         PasswordHash = passwordHash;
         Role = role;
+        LocationId = locationId;
     }
     public void ChangePassword(string newPasswordHash)
     {
         PasswordHash = newPasswordHash;
+    }
+    public void ChangeLocation(Guid newLocationId)
+    {
+        if (newLocationId == Guid.Empty) throw new ValidationException("La nueva ubicación no es válida.");
+        LocationId = newLocationId;
     }
     public void UpdateRole(string newRole)
     {
