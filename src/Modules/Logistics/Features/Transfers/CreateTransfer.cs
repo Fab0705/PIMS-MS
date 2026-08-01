@@ -1,11 +1,13 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Domain.Entities;
 using PIMS_MS.Modules.Logistics.Domain.Exceptions;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
@@ -80,8 +82,9 @@ public class CreateTransfer
                 var id = await sender.Send(command);
                 return Results.Created($"/api/logistics/transfers/{id}", new { id });
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
             .WithName("Create Transfer")
-            .WithSummary("Crea una nueva guía de traslado interprovincial de repuestos.");
+            .WithTags("Logistics - Transfers");
         }
     }
 }

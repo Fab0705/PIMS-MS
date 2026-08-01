@@ -1,10 +1,12 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Domain.Enums;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
@@ -43,20 +45,40 @@ public class GetReplenishmentsByStatus
                 query = query.Where(r => r.Status == request.Status.Value);
             }
 
-            // 🔐 TENANT SCOPING POR ROLES:
-            if (!_currentService.IsAdmin)
+            bool hasGlobalView = _currentService.IsAdmin || 
+                                 _currentService.Role.Equals(RequiredRoles.ConsultantLogistic, StringComparison.OrdinalIgnoreCase);
+
+            if (!hasGlobalView)
             {
-                // El almacenero provincial queda restringido en LINQ a ver solo sus pedidos
+                // Si es un rol estrictamente operativo (OperatorManager), lo restringimos a su almacén
                 var userLocation = _currentService.LocationId;
                 query = query.Where(r => r.LocationId == userLocation);
             }
             else if (request.LocationId.HasValue && request.LocationId.Value != Guid.Empty)
             {
-                // El Admin central filtró por un almacén en el dropdown del Dashboard
+                // Si es Admin o Consultor Logístico Y seleccionaron un almacén en el filtro del Frontend
                 query = query.Where(r => r.LocationId == request.LocationId.Value);
             }
 
-            var results = await query
+            var dbReplenishments = await query
+                .Select(r => new 
+                {
+                    r.Id,
+                    r.LocationId,
+                    r.Status,
+                    r.RejectionReason,
+                    r.CreatedAtUtc,
+                    r.CreatedBy,
+                    Items = r.Items.Select(i => new 
+                    {
+                        i.SparePartId,
+                        i.Quantity
+                    })
+                })
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+
+            var results = dbReplenishments
                 .Select(r => new ReplenishmentResponse(
                     r.Id,
                     r.LocationId,
@@ -69,8 +91,7 @@ public class GetReplenishmentsByStatus
                         i.Quantity
                     )).ToList()
                 ))
-                .OrderByDescending(r => r.CreatedAtUtc)
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             return results;
         }
@@ -84,8 +105,9 @@ public class GetReplenishmentsByStatus
                 var result = await sender.Send(query);
                 return Results.Ok(result);
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
             .WithName("GetReplenishmentsByStatus")
-            .WithSummary("Obtiene el listado de solicitudes de reabastecimiento provincial auditadas.");
+            .WithTags("Logistics - Replenishments");
         }
     }
 }

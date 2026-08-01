@@ -1,10 +1,12 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Domain.Enums;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
@@ -57,7 +59,28 @@ public class GetTransfersHistory
                 query = query.Where(t => t.OriginLocationId == request.LocationId.Value || t.DestinationLocationId == request.LocationId.Value);
             }
 
-            var transfers = await query
+            
+            
+            var dbTransfers = await query
+                            .Select(t => new
+                            {
+                                t.Id,
+                                t.TrackingCode,
+                                t.OriginLocationId,
+                                t.DestinationLocationId,
+                                t.Status,
+                                t.ExceptionNotes,
+                                t.CreatedAtUtc,
+                                Items = t.Items.Select(i => new
+                                {
+                                    i.SparePartId,
+                                    i.Quantity
+                                })
+                            })
+                            .OrderByDescending(t => t.CreatedAtUtc)
+                            .ToListAsync(cancellationToken);
+
+            var transfers = dbTransfers
                 .Select(t => new TransferResponse(
                     t.Id,
                     t.TrackingCode,
@@ -70,9 +93,7 @@ public class GetTransfersHistory
                         i.SparePartId,
                         i.Quantity
                     )).ToList()
-                ))
-                .OrderByDescending(t => t.CreatedAtUtc)
-                .ToListAsync(cancellationToken);
+                )).ToList();
 
             return transfers;
         }
@@ -86,8 +107,9 @@ public class GetTransfersHistory
                 var result = await sender.Send(query);
                 return Results.Ok(result);
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
             .WithName("GetTransfersHistory")
-            .WithSummary("Devuelve el historial auditado y filtrable de traslados interprovinciales.");
+            .WithTags("Logistics - Transfers");
         }
     }
 }

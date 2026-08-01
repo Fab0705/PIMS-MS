@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
 namespace PIMS_MS.Modules.Logistics.Features.Replenishments;
@@ -24,11 +26,6 @@ public class ApproveReplenishment
         }
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
-            if (!_currentService.IsAdmin)
-            {
-                throw new UnauthorizedAccessException("No tienes permisos de Administrador o Central Logística para aprobar solicitudes de reabastecimiento.");
-            }
-
             var replenishment = await _dbContext.Replenishments
                 .Include(r => r.Items)
                 .FirstOrDefaultAsync(r => r.Id == request.ReplenishmentId, cancellationToken);
@@ -50,8 +47,9 @@ public class ApproveReplenishment
                 await sender.Send(new Command(id));
                 return Results.NoContent();
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.ConsultantLogistic})
             .WithName("ApproveReplenishment")
-            .WithSummary("Aprueba una solicitud de abastecimiento y notifica para la creación de la guía de traslado.");
+            .WithTags("Logistics - Replenishments");
         }
     }
 }

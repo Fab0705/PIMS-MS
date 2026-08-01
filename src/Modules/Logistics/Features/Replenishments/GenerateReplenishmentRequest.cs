@@ -1,10 +1,12 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Domain.Entities;
 using PIMS_MS.Modules.Logistics.Domain.Exceptions;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
@@ -72,8 +74,9 @@ public class GenerateReplenishmentRequest
                 var id = await sender.Send(command);
                 return Results.Created($"/api/logistics/replenishments/{id}", new { id });
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
             .WithName("GenerateReplenishmentRequest")
-            .WithSummary("Genera una nueva solicitud de abastecimiento de repuestos para una provincia.");
+            .WithTags("Logistics - Replenishments");
         }
     }
 }

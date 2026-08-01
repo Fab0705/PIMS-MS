@@ -1,11 +1,14 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using PIMS_MS.Common.Contracts;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
 namespace PIMS_MS.Modules.Logistics.Features.Transfers;
@@ -17,10 +20,12 @@ public class DispatchTransfer
     {
         private readonly LogisticDbContext _dbContext;
         private readonly ICurrentService _currentService;
-        public Handler(LogisticDbContext dbContext, ICurrentService currentService)
+        private readonly IPublisher _publisher;
+        public Handler(LogisticDbContext dbContext, ICurrentService currentService, IPublisher publisher)
         {
             _dbContext = dbContext;
             _currentService = currentService;
+            _publisher = publisher;
         }
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
@@ -37,7 +42,19 @@ public class DispatchTransfer
             transfer.Dispatch();
 
             await _dbContext.SaveChangesAsync(cancellationToken);
-        }
+
+            var contractItems = transfer.Items
+                        .Select(i => new TransferItemContractDto(i.SparePartId, i.Quantity))
+                        .ToList();
+
+            // Publicamos el Integration Event
+            await _publisher.Publish(new TransferDispatchedIntegrationEvent(
+                transfer.Id, 
+                transfer.TrackingCode, // Asegúrate de tener esta propiedad en tu entidad
+                transfer.OriginLocationId, 
+                contractItems
+            ), cancellationToken);
+        }                                
     }
     public class Endpoint : IEndpoint
     {
@@ -48,8 +65,9 @@ public class DispatchTransfer
                 await sender.Send(new Command(transferId));
                 return Results.NoContent();
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
             .WithName("Dispatch Transfer")
-            .WithSummary("Marca un traslado como Despachado (InTransit) y gatilla el descuento de stock en origen.");
+            .WithTags("Logistics - Transfers");
         }
     }
 }

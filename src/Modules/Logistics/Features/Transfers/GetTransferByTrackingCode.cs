@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
 namespace PIMS_MS.Modules.Logistics.Features.Transfers;
@@ -82,8 +84,9 @@ public class GetTransferByTrackingCode
                 var result = await sender.Send(new Query(trackingCode));
                 return Results.Ok(result);
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
             .WithName("GetTransferByTrackingCode")
-            .WithSummary("Consulta el detalle exacto de una guía mediante su código de seguimiento (TrackingCode).");
+            .WithTags("Logistics - Transfers");
         }
     }
 }

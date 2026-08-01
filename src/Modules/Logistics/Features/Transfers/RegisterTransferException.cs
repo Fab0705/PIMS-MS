@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
 namespace PIMS_MS.Modules.Logistics.Features.Transfers;
@@ -45,8 +47,9 @@ public class RegisterTransferException
                 await sender.Send(command);
                 return Results.NoContent();
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
             .WithName("RegisterTransferException")
-            .WithSummary("Registra una incidencia, daño o pérdida en una guía de traslado.");
+            .WithTags("Logistics - Transfers");
         }
     }
 }

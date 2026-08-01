@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Logistics.Database;
+using PIMS_MS.Modules.Logistics.Domain.Constants;
 using PIMS_MS.Modules.Logistics.Features.EndpointGroup;
 
 namespace PIMS_MS.Modules.Logistics.Features.Replenishments;
@@ -34,11 +36,6 @@ public class RefuseReplenishment
         }
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
-            if (!_currentService.IsAdmin)
-            {
-                throw new UnauthorizedAccessException("Solo la Central Logística o un Administrador pueden rechazar solicitudes de abastecimiento.");
-            }
-
             var replenishment = await _dbContext.Replenishments
                 .FirstOrDefaultAsync(r => r.Id == request.ReplenishmentId, cancellationToken);
 
@@ -59,8 +56,9 @@ public class RefuseReplenishment
                 await sender.Send(new Command(id, body.Reason));
                 return Results.NoContent();
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.ConsultantLogistic})
             .WithName("RefuseReplenishment")
-            .WithSummary("Rechaza una solicitud de reabastecimiento provincial adjuntando el motivo oficial.");
+            .WithTags("Logistics - Replenishments");
         }
     }
 }
