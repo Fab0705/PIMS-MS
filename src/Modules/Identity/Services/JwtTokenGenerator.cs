@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -17,7 +18,15 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _configuration = configuration;
     }
 
-    public string GenerateToken(Guid UserId, string Email, string Role, Guid LocationId)
+    public string GenerateRefreshToken()
+    {
+        var randomNumber = new byte[64];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomNumber);
+        return Convert.ToBase64String(randomNumber);
+    }
+
+    public string GenerateToken(Guid UserId, string Email, string Role, Guid? LocationId)
     {
         var claims = new List<Claim>
         {
@@ -25,8 +34,12 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new Claim(ClaimTypes.Email, Email),
             new Claim(ClaimTypes.Role, Role),
             new Claim("role", Role),
-            new Claim("location_id", LocationId.ToString())
         };
+
+        if (LocationId.HasValue && LocationId.Value != Guid.Empty)
+        {
+            claims.Add(new Claim("location_id", LocationId.Value.ToString()));
+        }
 
         var secret = _configuration["JwtSettings:Secret"] 
                     ?? throw new InvalidOperationException("El secreto JWT (JwtSettings:Secret) no está configurado en appsettings.json o en las variables de entorno.");
