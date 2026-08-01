@@ -11,14 +11,27 @@ public class User
     public string Role { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
 
-    public Guid LocationId { get; private set; }
+    public Guid? LocationId { get; private set; }
     
     private User() { }
-    public User(string email, string passwordHash, string role, Guid locationId)
+    public User(string email, string passwordHash, string role, Guid? locationId)
     {
         if (string.IsNullOrWhiteSpace(role) || !Roles.IsValidRole(role))
         {
-            throw new ValidationException($"El rol '{role}' no es un rol válido dentro de la agencia NATRYX.");
+            throw new ValidationException($"El rol '{role}' no es un rol válido dentro de la aplicación.");
+        }
+        // 2. CORREGIDO: Si enviaron un valor (no es null), validamos que no sea un Guid vacío
+        if (locationId.HasValue && locationId.Value == Guid.Empty)
+        {
+            throw new ValidationException("Si se proporciona una locación, no puede ser un identificador vacío (Guid.Empty).");
+        }
+
+        bool isGlobalRole = string.Equals(role, "ConsultantLogistic", StringComparison.OrdinalIgnoreCase) 
+                 || string.Equals(role, "Administrator", StringComparison.OrdinalIgnoreCase);
+
+        if (!isGlobalRole && !locationId.HasValue)
+        {
+            throw new ValidationException($"El rol '{role}' requiere obligatoriamente estar asignado a una locación.");
         }
 
         Id = Guid.NewGuid();
