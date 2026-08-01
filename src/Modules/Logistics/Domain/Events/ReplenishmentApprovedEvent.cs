@@ -1,10 +1,9 @@
-using PIMS_MS.Modules.Logistics.Domain.Entities;
+using PIMS_MS.Modules.Logistics.Domain.Events;
 
-namespace PIMS_MS.Modules.Logistics.Domain.Events;
 public record ReplenishmentApprovedEvent(
     Guid ReplenishmentId, 
     Guid LocationId, 
-    IReadOnlyCollection<ReplenishmentItem> Items
+    IReadOnlyCollection<ReplenishmentItemEventDto> Items
 ) : IDomainEvent
 {
     public DateTime OccurredOn { get; init; } = DateTime.UtcNow;
