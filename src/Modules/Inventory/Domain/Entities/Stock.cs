@@ -47,7 +47,6 @@ public class Stock : AggregateRoot
 
         Quantity -= amount;
 
-        // Disparar Evento de Dominio si cruza el umbral crítico (ej. menos de 5 unidades)
         if (Quantity <= 5)
         {
             AddDomainEvent(new StockDepletedEvent(SparePartId, LocationId, Quantity));
