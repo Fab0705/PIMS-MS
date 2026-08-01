@@ -49,8 +49,10 @@ public class Replenishment : AggregateRoot
             throw new EmptyLogisticsDocumentException("Solicitud de Reabastecimiento");
 
         Status = ReplenishmentStatus.Approved;
+
+        var eventItems = _items.Select(i => new ReplenishmentItemEventDto(i.SparePartId, i.Quantity)).ToList();
         
-        AddDomainEvent(new ReplenishmentApprovedEvent(Id, LocationId, _items));
+        AddDomainEvent(new ReplenishmentApprovedEvent(Id, LocationId, eventItems));
     }
 
     public void Refuse(string reason)

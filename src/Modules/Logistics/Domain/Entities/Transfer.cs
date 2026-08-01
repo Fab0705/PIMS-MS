@@ -71,7 +71,9 @@ public class Transfer : AggregateRoot
 
         Status = TransferStatus.InTransit;
 
-        AddDomainEvent(new TransferDispatchedEvent(Id, TrackingCode, OriginLocationId, _items));
+        var eventItems = _items.Select(i => new TransferItemEventDto(i.SparePartId, i.Quantity)).ToList();
+
+        AddDomainEvent(new TransferDispatchedEvent(Id, TrackingCode, OriginLocationId, eventItems));
     }
     public void Receive()
     {
@@ -79,8 +81,10 @@ public class Transfer : AggregateRoot
             throw new InvalidTransferStatusException(Status.ToString(), "Recibir Traslado");
 
         Status = TransferStatus.Received;
+        
+        var eventItems = _items.Select(i => new TransferItemEventDto(i.SparePartId, i.Quantity)).ToList();
 
-        AddDomainEvent(new TransferReceivedEvent(Id, TrackingCode, DestinationLocationId, _items));
+        AddDomainEvent(new TransferReceivedEvent(Id, TrackingCode, DestinationLocationId, eventItems));
     }
     public void RegisterException(string notes)
     {
