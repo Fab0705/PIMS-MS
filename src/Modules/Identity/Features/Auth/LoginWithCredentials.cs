@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Identity.Database;
+using PIMS_MS.Modules.Identity.Domain.Entities;
 using PIMS_MS.Modules.Identity.Features._EndpointGroup;
 
 namespace PIMS_MS.Modules.Identity.Features.Auth;
@@ -37,8 +38,16 @@ public static class LoginWithCredentials
             }
             var expiration = DateTime.UtcNow.AddMinutes(30);
             
-            string token = _jwtTokenGenerator.GenerateToken(user.Id, user.Email, user.Role, user.LocationId);
-            return new LoginResponse(token, string.Empty, expiration);
+            var jwtToken = _jwtTokenGenerator.GenerateToken(user.Id, user.Email, user.Role, user.LocationId);
+            var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+            
+            var refreshTokenEntity = new RefreshToken(user.Id, refreshToken, DateTime.UtcNow.AddDays(7));
+
+            _dbContext.RefreshTokens.Add(refreshTokenEntity);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            
+
+            return new LoginResponse(jwtToken, refreshToken, expiration);
         }
     }
 
