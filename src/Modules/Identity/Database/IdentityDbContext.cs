@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Api.Modules.Identity.Domain.Entities;
+using PIMS_MS.Modules.Identity.Domain.Entities;
 
 namespace PIMS_MS.Modules.Identity.Database;
 
@@ -10,6 +11,7 @@ public sealed class IdentityDbContext : DbContext
     }
 
     public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,6 +20,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.HasDefaultSchema("identity");
 
         ConfigureUsers(modelBuilder);
+        ConfigureRefreshTokens(modelBuilder);
     }
     private static void ConfigureUsers(ModelBuilder modelBuilder)
     {
@@ -51,8 +54,28 @@ public sealed class IdentityDbContext : DbContext
             // 🔐 TENANT SCOPING: Indexamos la provincia/ubicación para acelerar filtros y JOINs,
             // respetando el desacoplamiento de DDD (Sin Foreign Keys físicas hacia otros módulos)
             entity.Property(u => u.LocationId)
-                .IsRequired();
+                .IsRequired(false);
             entity.HasIndex(u => u.LocationId);
+        });
+    }
+    private static void ConfigureRefreshTokens(ModelBuilder modelBuilder)
+    {
+        // Dentro de tu OnModelCreating / Configure:
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("RefreshTokens");
+            entity.HasKey(x => x.Id);
+            
+            entity.Property(x => x.Token).IsRequired().HasMaxLength(200);
+            
+            // ⚡ VITAL: Creamos un índice para buscar rapidísimo por Token cuando el Frontend intente refrescar
+            entity.HasIndex(x => x.Token).IsUnique();
+            
+            // Relación con el usuario
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Si borras al usuario, se borran sus sesiones
         });
     }
 }
