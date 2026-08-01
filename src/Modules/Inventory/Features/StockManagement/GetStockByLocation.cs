@@ -1,10 +1,12 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
 namespace PIMS_MS.Modules.Inventory.Features.StockManagement;
@@ -44,7 +46,9 @@ public static class GetStockByLocation
                 var result = await sender.Send(query);
                 return Results.Ok(result);
             })
-            .WithName("GetStockByLocation");
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
+            .WithName("GetStockByLocation")
+            .WithTags("Inventory - Stock Management");
         }
     }
 }

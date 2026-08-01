@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
 namespace PIMS_MS.Modules.Inventory.Features.StockManagement;
@@ -51,7 +53,7 @@ public static class CheckLowStockAlerts
             
             var query = _dbContext.Stocks.AsNoTracking().Where(s => s.Quantity <= request.Threshold);
 
-            if(!_currentService.Role.Equals("Administrator"))
+            if(!_currentService.Role.Equals(RequiredRoles.ConsultantLogistic))
             {
                 var userLocationId = _currentService.LocationId;
                 query = query.Where(s => s.LocationId == userLocationId);
@@ -61,20 +63,33 @@ public static class CheckLowStockAlerts
                 query = query.Where(s => s.LocationId == request.LocationId.Value);
             }
 
-            var alerts = await query
-                        .Select(s => new LowStockAlert(
-                            s.Id,
-                            s.SparePartId,
-                            s.SparePart.PartNumber,
-                            s.SparePart.Description,
-                            s.LocationId,
-                            s.Location.Name,
-                            s.Quantity,
-                            request.Threshold,
-                            s.Quantity == 0 // Clasificamos como crítico si ya no hay existencias físicas
-                        ))
-                        .OrderBy(s => s.CurrentQuantity)
-                        .ToListAsync(cancellationToken);
+            var dbAlerts = await query
+                .Select(s => new 
+                {
+                    StockId = s.Id,
+                    s.SparePartId,
+                    s.SparePart.PartNumber,
+                    s.SparePart.Description,
+                    s.LocationId,
+                    LocationName = s.Location.Name,
+                    s.Quantity
+                })
+                .OrderBy(s => s.Quantity)
+                .ToListAsync(cancellationToken);
+
+            var alerts = dbAlerts
+                .Select(s => new LowStockAlert(
+                    s.StockId,
+                    s.SparePartId,
+                    s.PartNumber,
+                    s.Description,
+                    s.LocationId,
+                    s.LocationName,
+                    s.Quantity,
+                    request.Threshold,
+                    s.Quantity == 0
+                ))
+                .ToList();
             
             _logger.LogInformation("Escaneo completado. Se detectaron {Count} alertas de inventario.", alerts.Count);
 
@@ -91,9 +106,9 @@ public static class CheckLowStockAlerts
                 var result = await mediator.Send(query, cancellationToken);
                 return Results.Ok(result);
             })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
             .WithName("CheckLowStockAlerts")
-            .WithSummary("Verifica los niveles de inventario que se encuentran en estado crítico o bajo stock.");
-
+            .WithTags("Inventory - Stock Management");
         }
     }
 }

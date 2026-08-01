@@ -1,0 +1,31 @@
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+using PIMS_MS.Common.Contracts;
+using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Entities;
+
+namespace PIMS_MS.Modules.Inventory.Features.StockManagement.EventHandlers;
+
+public class DecreaseStockOnStartWorkHandler : INotificationHandler<WorkOrderStartWorkIntegrationEvent>
+{
+    private readonly InventoryDbContext _dbContext;
+    public DecreaseStockOnStartWorkHandler(InventoryDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+    public async Task Handle(WorkOrderStartWorkIntegrationEvent notification, CancellationToken cancellationToken)
+    {
+        foreach (var item  in notification.Items)
+        {
+            var stock = await _dbContext.Stocks
+                        .FirstOrDefaultAsync(s => s.LocationId == notification.LocationId 
+                                       && s.SparePartId == item.SparePartId, cancellationToken);
+            if (stock != null)
+            {
+                stock.Decrement(item.Quantity);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+}

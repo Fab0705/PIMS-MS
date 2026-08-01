@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Domain.Exceptions;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
@@ -66,7 +68,9 @@ public static class AdjustStockLevel
                 await sender.Send(command);
                 return Results.NoContent();
             })
-            .WithName("AdjustStockLevel");
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
+            .WithName("AdjustStockLevel")
+            .WithTags("Inventory - Stock Management");
         }
     }
 }
