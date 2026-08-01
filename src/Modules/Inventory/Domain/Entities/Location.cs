@@ -23,4 +23,11 @@ public class Location
         Name = name.Trim();
         RegionId = regionId;
     }
+    public void UpdateName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(Name)) 
+            throw new InvalidDomainArgumentException("El nombre no puede quedar vacía al actualizar la locación.");
+
+        Name = name;
+    }
 }
