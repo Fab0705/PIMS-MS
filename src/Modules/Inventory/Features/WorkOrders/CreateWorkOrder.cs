@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Exceptions;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Domain.Entities;
 using PIMS_MS.Modules.Inventory.Domain.Exceptions;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
@@ -37,12 +39,14 @@ public static class CreateWorkOrder
                 
             if (!locationExists)
                 throw new NotFoundException("Almacén Provincial", userLocationId);
-
-            var orderNumberExists = await _dbContext.WorkOrders
-                .AnyAsync(w => w.WorkOrderNumber == request.WorkOrderNumber.Trim().ToUpperInvariant(), cancellationToken);
                 
-            if (orderNumberExists)
-                throw new InvalidDomainArgumentException($"El número de orden de trabajo '{request.WorkOrderNumber}' ya existe en el sistema.");
+            var requestedSparePartIds = request.Items.Select(i => i.SparePartId).Distinct().ToList();
+            
+            var existingPartsCount = await _dbContext.SpareParts
+                .CountAsync(sp => requestedSparePartIds.Contains(sp.Id), cancellationToken);
+
+            if (existingPartsCount != requestedSparePartIds.Count)
+                throw new InvalidDomainArgumentException("Uno o más repuestos ingresados no existen en el catálogo maestro.");
 
             var workOrder = new WorkOrder(Guid.NewGuid(), userLocationId, request.WorkOrderNumber, request.Description);
 
@@ -82,7 +86,9 @@ public static class CreateWorkOrder
                 var workOrderId = await sender.Send(command);
                 return Results.Created($"/api/workorders/{workOrderId}", new { Id = workOrderId });
             })
-            .WithName("CreateWorkOrder");
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
+            .WithName("CreateWorkOrder")
+            .WithTags("Inventory - WorkOrder");
         }
     }
 }

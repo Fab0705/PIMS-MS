@@ -1,10 +1,12 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Domain.Enums;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
@@ -56,24 +58,42 @@ public static class GetWorkOrderByStatus
             }
             // Si es Administrador y no envió LocationId, la consulta no aplica filtro de ubicación y le devuelve TODO el país.
 
-            var workOrders = await query
-                .Select(w => new WorkOrderResponse(
-                    w.Id,
-                    w.LocationId,
-                    w.Location.Name,
-                    w.WorkOrderNumber,
-                    w.Description,
-                    w.Status.ToString(),
-                    w.CreatedAtUtc,
-                    w.Items.Select(i => new WorkOrderItemResponse(
-                        i.SparePartId,
-                        i.SparePart.PartNumber,
-                        i.SparePart.Description,
-                        i.Quantity
-                    )).ToList()
-                ))
-                .OrderByDescending(w => w.CreatedAtUtc)
-                .ToListAsync(cancellationToken);
+            var dbWorkOrders = await query
+                                .Select(w => new 
+                                {
+                                    w.Id,
+                                    w.LocationId,
+                                    LocationName = w.Location.Name,
+                                    w.WorkOrderNumber,
+                                    w.Description,
+                                    w.Status, // Lo traemos como Enum, sin .ToString()
+                                    w.CreatedAtUtc,
+                                    Items = w.Items.Select(i => new 
+                                    {
+                                        i.SparePartId,
+                                        i.SparePart.PartNumber,
+                                        i.SparePart.Description,
+                                        i.Quantity
+                                    }) // SIN .ToList()
+                                })
+                                .OrderByDescending(w => w.CreatedAtUtc)
+                                .ToListAsync(cancellationToken);
+
+            var workOrders = dbWorkOrders.Select(w => new WorkOrderResponse(
+                                w.Id,
+                                w.LocationId,
+                                w.LocationName,
+                                w.WorkOrderNumber,
+                                w.Description,
+                                w.Status.ToString(), // Aquí SÍ podemos usar .ToString() porque ya estamos en memoria
+                                w.CreatedAtUtc,
+                                w.Items.Select(i => new WorkOrderItemResponse(
+                                    i.SparePartId,
+                                    i.PartNumber,
+                                    i.Description,
+                                    i.Quantity
+                                )).ToList() // Aquí SÍ usamos .ToList()
+                            )).ToList();
 
             return workOrders;
         }
@@ -94,7 +114,9 @@ public static class GetWorkOrderByStatus
                 var result = await sender.Send(query);
                 return Results.Ok(result);
             })
-            .WithName("GetWorkOrdersByStatus");
+            .RequireAuthorization(new AuthorizeAttribute { Roles = $"{RequiredRoles.OperatorManager},{RequiredRoles.ConsultantLogistic}" })
+            .WithName("GetWorkOrdersByStatus")
+            .WithTags("Inventory - WorkOrder");
         }
     }
 }
