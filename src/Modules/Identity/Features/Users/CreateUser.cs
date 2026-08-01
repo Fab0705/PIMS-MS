@@ -14,7 +14,7 @@ namespace PIMS_MS.Modules.Identity.Features.Users;
 
 public static class CreateUser
 {
-    public record Command(string Email, string Password, string Role, Guid LocationId) : IRequest<UserResponse>;
+    public record Command(string Email, string Role, Guid? LocationId) : IRequest<UserResponse>;
     public record UserResponse(Guid Id, string Email, string TemporaryPassword, string Message);
 
     public class Handler : IRequestHandler<Command, UserResponse>
@@ -32,11 +32,13 @@ public static class CreateUser
 
         public async Task<UserResponse> Handle(Command request, CancellationToken cancellationToken)
         {
-            bool locationExists = await _sender.Send(new CheckLocationExistsQuery(request.LocationId), cancellationToken);
-
-            if (!locationExists)
+            if (request.LocationId.HasValue && request.LocationId.Value != Guid.Empty)
             {
-                throw new ValidationException("La ubicación asignada no existe en el catálogo global de inventario.");
+                bool locationExists = await _sender.Send(new CheckLocationExistsQuery(request.LocationId.Value), cancellationToken);
+                if (!locationExists)
+                {
+                    throw new ValidationException("La ubicación asignada no existe en el catálogo global de inventario.");
+                }
             }
 
             var existingUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
@@ -63,9 +65,12 @@ public static class CreateUser
         public Validator()
         {
             RuleFor(x => x.Email).NotEmpty().EmailAddress();
-            RuleFor(x => x.Password).NotEmpty();
             RuleFor(x => x.Role).NotEmpty();
-            RuleFor(x => x.LocationId).NotEqual(Guid.Empty);
+            RuleFor(x => x.LocationId)
+                .NotEmpty().WithMessage("La ubicación es obligatoria para los roles operativos.")
+                .NotEqual(Guid.Empty).WithMessage("Debe seleccionar una ubicación válida.")
+                .When(x => !string.Equals(x.Role, "Administrator", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(x.Role, "ConsultantLogistic", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -78,7 +83,8 @@ public static class CreateUser
                     var result = await mediator.Send(command);
                     return Results.Ok(result);
                 })
-                .WithName("CreateUser");
+                .WithName("CreateUser")
+                .AllowAnonymous();
         }
     }
 }
