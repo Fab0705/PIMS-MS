@@ -159,6 +159,10 @@ var endpoints = assembliesToScan
     .Select(type => ServiceDescriptor.Transient(typeof(IEndpoint), type))
     .ToArray();
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
+});
 
 builder.Services.TryAddEnumerable(endpoints);
 
@@ -169,6 +173,12 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    dbContext.Database.CanConnect();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -176,10 +186,8 @@ if (app.Environment.IsDevelopment())
 
     app.UseSwaggerUI(options =>
     {
-        // 2. Apuntamos a la ruta por defecto donde Swashbuckle crea el archivo
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "PIMS-MS V1");
 
-        // ESTA LÍNEA HACE QUE SWAGGER CARGUE EN LA RAÍZ (localhost:puerto/)
         options.RoutePrefix = string.Empty;
     });
 }
