@@ -1,10 +1,12 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PIMS_MS.Common.Interfaces;
 using PIMS_MS.Modules.Inventory.Database;
+using PIMS_MS.Modules.Inventory.Domain.Constants;
 using PIMS_MS.Modules.Inventory.Features._EndpointGroup;
 
 namespace PIMS_MS.Modules.Inventory.Features.Spareparts;
@@ -57,7 +59,9 @@ public static class UpdateSparePartDetails
                 await mediator.Send(command);
                 return Results.NoContent();
             })
-            .WithName("UpdateSparePartDetails");
+            .RequireAuthorization(new AuthorizeAttribute { Roles = RequiredRoles.OperatorManager })
+            .WithName("UpdateSparePartDetails")
+            .WithTags("Inventory - SparePart");
         }
     }
 }
