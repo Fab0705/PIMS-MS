@@ -59,7 +59,7 @@ To set up the API locally on your machine for testing or review, follow these st
 ### Steps
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/your-username/PIMS-MS.git](https://github.com/your-username/PIMS-MS.git)
+   git clone https://github.com/Fab0705/PIMS-MS.git
    ```
 2. Configure the environment variables (PostgreSQL connection string, JWT Secrets) in the `appsettings.Development.json` file inside the `PIMS-MS.Api` project.
 3. (Optional) Start your database using Docker Compose if you have the file configured, or ensure you have a local PostgreSQL instance running.
