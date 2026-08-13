@@ -34,7 +34,7 @@ This repository exclusively contains the backend of the platform, structured to 
 Currently, the core system operates with the base modules (`Identity`, `Inventory`, and `Logistics`). Active development is focused on integrating the following modules:
 
 *   [ ] **FieldService Module (Work in Progress):** Field service operations management. Currently in the refactoring phase from the legacy codebase to adapt it to VSA.
-*   [ ] **Notifications Module (Work in Progress):** Cross-cutting system for sending alerts (e.g., critical stock alerts, transfer approval emails). Currently in the refactoring phase.
+*   [ x ] **Notifications Module (Work in Progress):** Cross-cutting system for sending alerts (e.g., critical stock alerts, transfer approval emails). Currently in the refactoring phase.
 
 ---
 
