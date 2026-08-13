@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Identity;
 using PIMS_MS.Modules.Identity.Domain.Constants;
 using PIMS_MS.Common.Interceptors;
 using System.Security.Claims;
+using PIMS_MS.Modules.Notifications.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,6 +101,7 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ICurrentService, CurrentService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<UpdateAuditableEntitiesInterceptor>();
 
 builder.Services.AddCors(options =>
